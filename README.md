@@ -2,10 +2,12 @@
 
 An open-source desktop tool built with Electron to prepare, partition, and format internal and external drives for Xbox One consoles.
 
-## 💾 Releases & Installer
-Download the compiled Windows setup executable:
-- **[Download Setup (.exe)](https://github.com/Tolgakabadayi/xbox-one-disk-manager/releases/download/v1.0.0/Xbox-One-Recovery-SSD-Center-Setup-1.0.0.exe)**
-- **[GitHub Releases](https://github.com/Tolgakabadayi/xbox-one-disk-manager/releases)**
+## 💾 Downloads & Releases
+Pre-built packages for Windows and Linux:
+- 🪟 **[Windows Setup (.exe)](https://github.com/Tolgakabadayi/xbox-one-disk-manager/releases/download/v1.0.0/Xbox-One-Recovery-SSD-Center-Setup-1.0.0.exe)** (64-bit installer)
+- 🐧 **[Linux x64 Package (.tar.gz)](https://github.com/Tolgakabadayi/xbox-one-disk-manager/releases/download/v1.0.0/xbox-one-disk-manager-linux-x64-1.0.0.tar.gz)** (Portable binary bundle)
+- 📜 **[Linux CLI Script (Bash)](https://github.com/Tolgakabadayi/xbox-one-disk-manager/blob/main/scripts/xbox_drive_linux.sh)** (`sgdisk` + `mkfs.ntfs`)
+- 📦 **[All GitHub Releases](https://github.com/Tolgakabadayi/xbox-one-disk-manager/releases)**
 
 ---
 

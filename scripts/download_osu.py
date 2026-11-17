@@ -21,7 +21,7 @@ if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
         pass
 
 OSU1_URL = "https://download.microsoft.com/download/524a2f3b-271e-42a2-befe-913d3cc76c0e/OSU1.zip"
-TARGET_DIR = r"C:\Users\kabad\Downloads"
+TARGET_DIR = os.path.join(os.path.expanduser('~'), 'Downloads')
 TARGET_FILE = os.path.join(TARGET_DIR, "OSU1.zip")
 STATUS_FILE = os.path.join(TARGET_DIR, "osu1_download_status.json")
 

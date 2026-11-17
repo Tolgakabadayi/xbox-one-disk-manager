@@ -4,7 +4,53 @@
   "description": "Xbox One Dahili Disk ve SSD Hazırlama Aracı (GUID + Partition + OSU1)",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.tolgakabadayi.xboxonediskmanager",
+    "productName": "Xbox One Recovery & SSD Center",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/*",
+      "!reference_xboxonehdd/*"
+    ],
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "scripts",
+        "to": "scripts",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Xbox One Recovery & SSD Center",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "uninstallDisplayName": "Xbox One Recovery & SSD Center",
+      "runAfterFinish": true
+    }
   },
   "keywords": [
     "xbox",
@@ -19,7 +65,8 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "electron": "^45.3.3"
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "iconv-lite": "^0.7.3"

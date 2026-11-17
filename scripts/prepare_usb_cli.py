@@ -21,7 +21,7 @@ if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
     except:
         pass
 
-OSU1_ZIP = r"C:\Users\kabad\Downloads\OSU1.zip"
+OSU1_ZIP = os.path.join(os.path.expanduser('~'), 'Downloads', 'OSU1.zip')
 EXPECTED_SIZE = 6286062048
 
 def run_ps(cmd):

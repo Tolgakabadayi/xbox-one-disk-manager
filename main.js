@@ -21,8 +21,42 @@ const PART_GUIDS = {
   5: { guid: "24B2197C-9D01-45F9-A8E1-DBBCFA161EB2", name: "System Update 2", sizeMb: 7168 }
 };
 
-const DOWNLOAD_STATUS_FILE = path.join('C:\\Users\\kabad\\Downloads', 'osu1_download_status.json');
-const DEFAULT_OSU_ZIP = path.join('C:\\Users\\kabad\\Downloads', 'OSU1.zip');
+// Varlık yollarını çözümleme (Geliştirme ve Paketlenmiş Uygulama Desteği)
+function getAssetPath(...segments) {
+  const p1 = path.join(__dirname, ...segments);
+  if (fs.existsSync(p1)) return p1;
+  if (process.resourcesPath) {
+    const p2 = path.join(process.resourcesPath, ...segments);
+    if (fs.existsSync(p2)) return p2;
+  }
+  const p3 = path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), ...segments);
+  if (fs.existsSync(p3)) return p3;
+  return p1;
+}
+
+// Sistemdeki Python yorumlayıcısını otomatik bulma
+function findPythonExecutable() {
+  const candidates = [
+    'C:\\Users\\kabad\\AppData\\Local\\antigravity\\python\\5a1c45aafcb841ee\\python.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python313', 'python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe'),
+    path.join(process.env.ProgramFiles || '', 'Python313', 'python.exe'),
+    path.join(process.env.ProgramFiles || '', 'Python312', 'python.exe'),
+    path.join(process.env.ProgramFiles || '', 'Python311', 'python.exe')
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
+  }
+  return 'python';
+}
+
+const userDownloadsDir = (app && typeof app.getPath === 'function') 
+  ? app.getPath('downloads') 
+  : path.join(os.homedir(), 'Downloads');
+
+const DOWNLOAD_STATUS_FILE = path.join(userDownloadsDir, 'osu1_download_status.json');
+const DEFAULT_OSU_ZIP = path.join(userDownloadsDir, 'OSU1.zip');
 
 let mainWindow = null;
 
@@ -215,7 +249,7 @@ function executeDiskpartScript(scriptContent, onLogChunk) {
 function executeGdiskGuidInjection(diskNumber, diskGuid, onLogChunk) {
   return new Promise((resolve, reject) => {
     const is32Bit = process.arch === 'ia32';
-    const gdiskExe = path.join(__dirname, 'bin', is32Bit ? 'gdisk32.exe' : 'gdisk64.exe');
+    const gdiskExe = getAssetPath('bin', is32Bit ? 'gdisk32.exe' : 'gdisk64.exe');
 
     if (!fs.existsSync(gdiskExe)) {
       return reject(new Error(`GDISK yürütülebilir dosyası bulunamadı: ${gdiskExe}`));
@@ -342,10 +376,8 @@ ipcMain.handle('get-osu-status', async () => {
 
 // OSU İndirmesini Başlatma (Python Arka Plan İndiricisi)
 ipcMain.handle('start-osu-download', async () => {
-  const pyScript = path.join(__dirname, 'scripts', 'download_osu.py');
-  const pythonExe = 'C:\\Users\\kabad\\AppData\\Local\\antigravity\\python\\5a1c45aafcb841ee\\python.exe';
-  
-  const exe = fs.existsSync(pythonExe) ? pythonExe : 'python';
+  const pyScript = getAssetPath('scripts', 'download_osu.py');
+  const exe = findPythonExecutable();
   const child = spawn(exe, [pyScript], { detached: true, stdio: 'ignore' });
   child.unref();
   return { success: true, pid: child.pid };
@@ -355,7 +387,7 @@ ipcMain.handle('start-osu-download', async () => {
 ipcMain.handle('select-zip-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Xbox One OSU1.zip Dosyasını Seçin',
-    defaultPath: 'C:\\Users\\kabad\\Downloads',
+    defaultPath: userDownloadsDir,
     filters: [
       { name: 'Xbox One Güncelleme Paketi', extensions: ['zip'] }
     ],
@@ -591,9 +623,8 @@ ipcMain.handle('prepare-osu-usb', async (event, params) => {
     progress(55, '$SystemUpdate klasörü USB belleğe çıkarılıyor (Lütfen bekleyin)...');
     log(`\n[3/3] AŞAMA: $SystemUpdate Paketi Doğrudan ${targetRoot} Dizinine Çıkarılıyor...`);
 
-    const unzipScript = path.join(__dirname, 'scripts', 'unzip_osu.py');
-    const pythonExe = 'C:\\Users\\kabad\\AppData\\Local\\antigravity\\python\\5a1c45aafcb841ee\\python.exe';
-    const py = fs.existsSync(pythonExe) ? pythonExe : 'python';
+    const unzipScript = getAssetPath('scripts', 'unzip_osu.py');
+    const py = findPythonExecutable();
 
     const unzipSuccess = await new Promise((resolve) => {
       const child = spawn(py, [unzipScript, zipPath, targetRoot], { windowsHide: true });

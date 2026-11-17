@@ -21,7 +21,7 @@ const state = {
   usbDrives: [],
   selectedUsb: null,
   osuStatus: null,
-  osuZipPath: 'C:\\Users\\kabad\\Downloads\\OSU1.zip',
+  osuZipPath: '',
   isUsbInstalling: false
 };
 

@@ -89,11 +89,17 @@ sgdisk --partition-guid=4:"$PART_UPDATE_GUID" "$DEV"
 sgdisk --partition-guid=5:"$PART_UPDATE2_GUID" "$DEV"
 
 echo "Formatting volumes as NTFS (4096 bytes cluster size)..."
-mkfs.ntfs -f -s 4096 -L "Temp Content" "${DEV}1"
-mkfs.ntfs -f -s 4096 -L "User Content" "${DEV}2"
-mkfs.ntfs -f -s 4096 -L "System Support" "${DEV}3"
-mkfs.ntfs -f -s 4096 -L "System Update" "${DEV}4"
-mkfs.ntfs -f -s 4096 -L "System Update 2" "${DEV}5"
+if [[ "$DEV" =~ [0-9]$ ]]; then
+  P="${DEV}p"
+else
+  P="${DEV}"
+fi
+
+mkfs.ntfs -f -s 4096 -L "Temp Content" "${P}1"
+mkfs.ntfs -f -s 4096 -L "User Content" "${P}2"
+mkfs.ntfs -f -s 4096 -L "System Support" "${P}3"
+mkfs.ntfs -f -s 4096 -L "System Update" "${P}4"
+mkfs.ntfs -f -s 4096 -L "System Update 2" "${P}5"
 
 echo
 echo "================================================================="

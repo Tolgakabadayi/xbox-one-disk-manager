@@ -5,6 +5,20 @@ const os = require('os');
 const { exec, execFile, spawn } = require('child_process');
 const iconv = require('iconv-lite');
 
+// Linux ve Wayland ortamı için Chromium ve GPU kararlılık yapılandırması
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('disable-dev-shm-usage');
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+}
+
+app.on('child-process-gone', (event, details) => {
+  if (details.type === 'GPU' && details.reason !== 'clean-exit') {
+    console.warn('[Linux] GPU alt süreci kapandı, arayüz çalışmaya devam ediyor:', details.reason);
+  }
+});
+
 // Xbox One Sabit Disk GUID İmzaları
 const DISK_GUIDS = {
   '500GB': "A2344BDB-D6DE-4766-9EB5-4109A12228E5",
@@ -36,6 +50,9 @@ function getAssetPath(...segments) {
 
 // Sistemdeki Python yorumlayıcısını otomatik bulma
 function findPythonExecutable() {
+  if (process.platform === 'linux') {
+    return 'python3';
+  }
   const candidates = [
     'C:\\Users\\kabad\\AppData\\Local\\antigravity\\python\\5a1c45aafcb841ee\\python.exe',
     path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python313', 'python.exe'),
@@ -84,32 +101,113 @@ function createWindow() {
   });
 }
 
+// Linux blok aygıtı bölüm yolu çözümleme (/dev/sda -> /dev/sda1, /dev/nvme0n1 -> /dev/nvme0n1p1)
+function getPartitionDevicePath(diskPath, partNumber) {
+  return /\d$/.test(diskPath) ? `${diskPath}p${partNumber}` : `${diskPath}${partNumber}`;
+}
+
+// Linux ayrıcalıklı komut yürütücü (pkexec PolicyKit BalenaEtcher / GParted modeli)
+function runPrivilegedCommand(cmd, onLogChunk) {
+  return new Promise((resolve) => {
+    const isRoot = (process.getuid && process.getuid() === 0);
+    const fullCmd = isRoot ? cmd : `pkexec bash -c "${cmd.replace(/"/g, '\\"')}"`;
+    onLogChunk(`\n[Linux] Çalıştırılıyor: ${cmd}\n`);
+    exec(fullCmd, (err, stdout, stderr) => {
+      if (stdout) onLogChunk(stdout);
+      if (stderr) onLogChunk(`[UYARI] ${stderr}`);
+      if (err) resolve({ success: false, error: stderr || err.message });
+      else resolve({ success: true, stdout, stderr });
+    });
+  });
+}
+
+// Linux çalışma ortamı bağımlılık kontrolü
+function checkLinuxDependencies() {
+  return new Promise((resolve) => {
+    if (process.platform !== 'linux') return resolve({ ok: true, missing: [] });
+    const tools = ['sgdisk', 'mkfs.ntfs', 'wipefs', 'partprobe'];
+    const missing = [];
+    let checked = 0;
+    tools.forEach(tool => {
+      exec(`which ${tool}`, (err) => {
+        if (err) missing.push(tool);
+        checked++;
+        if (checked === tools.length) {
+          resolve({ ok: missing.length === 0, missing });
+        }
+      });
+    });
+  });
+}
+
 // Yönetici (Administrator) yetkisi kontrolü
 function checkIsAdmin() {
   return new Promise((resolve) => {
-    exec('net session', (err) => {
-      resolve(!err);
-    });
+    if (process.platform === 'win32') {
+      exec('net session', (err) => resolve(!err));
+    } else {
+      // Linux: root ise veya pkexec/sudo varsa
+      if (process.getuid && process.getuid() === 0) return resolve(true);
+      exec('which pkexec || which sudo', (err) => resolve(!err));
+    }
   });
 }
 
 // Yönetici olarak yeniden başlatma
 function relaunchAsAdmin() {
-  const electronExe = process.execPath;
-  const appPath = app.getAppPath();
-  const script = `Start-Process "${electronExe}" -ArgumentList '"${appPath}"' -Verb RunAs`;
-  
-  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], (err) => {
-    if (!err) {
-      setTimeout(() => {
-        app.quit();
-      }, 500);
-    }
-  });
+  if (process.platform === 'win32') {
+    const electronExe = process.execPath;
+    const appPath = app.getAppPath();
+    const script = `Start-Process "${electronExe}" -ArgumentList '"${appPath}"' -Verb RunAs`;
+    
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], (err) => {
+      if (!err) {
+        setTimeout(() => {
+          app.quit();
+        }, 500);
+      }
+    });
+  } else {
+    console.log('[Linux] Ayrıcalıklı disk komutları ihtiyaç duyulduğunda pkexec ile yürütülecektir.');
+  }
 }
 
 // Sistemdeki fiziksel diskleri listeleme
 function getPhysicalDisks() {
+  if (process.platform === 'linux') {
+    return new Promise((resolve) => {
+      const lsblkCmd = 'lsblk -d -b -J -o NAME,PATH,SIZE,ROTA,TYPE,MODEL,TRAN,MOUNTPOINT';
+      exec(lsblkCmd, (err, stdout) => {
+        if (err || !stdout) return resolve({ success: false, error: 'lsblk çıktısı alınamadı', disks: [] });
+        try {
+          const data = JSON.parse(stdout);
+          const disks = (data.blockdevices || [])
+            .filter(d => d.type === 'disk' && !d.name.startsWith('loop') && !d.name.startsWith('zram'))
+            .map((d, idx) => {
+              const sizeBytes = parseInt(d.size, 10) || 0;
+              const sizeGb = sizeBytes / (1024 ** 3);
+              const isSystem = (d.mountpoint === '/' || (idx === 0 && d.tran !== 'usb'));
+              return {
+                number: idx + 1,
+                devicePath: d.path || `/dev/${d.name}`,
+                name: d.model ? `${d.model} (${d.name})` : (d.path || `/dev/${d.name}`),
+                busType: d.tran ? d.tran.toUpperCase() : (d.rota ? 'HDD' : 'SSD'),
+                mediaType: d.rota ? 'HDD' : 'SSD',
+                sizeBytes: sizeBytes,
+                sizeGb: parseFloat(sizeGb.toFixed(1)),
+                sizeFormatted: sizeGb >= 1000 ? `${(sizeGb / 1024).toFixed(2)} TB` : `${sizeGb.toFixed(1)} GB`,
+                isSystem: isSystem,
+                partitionStyle: 'GPT'
+              };
+            });
+          resolve({ success: true, disks });
+        } catch (e) {
+          resolve({ success: false, error: e.message, disks: [] });
+        }
+      });
+    });
+  }
+
   return new Promise((resolve) => {
     const psCmd = 'Get-Disk | Select-Object Number, FriendlyName, BusType, Size, PartitionStyle | ConvertTo-Json -Compress';
     execFile('powershell.exe', [
@@ -155,6 +253,39 @@ function getPhysicalDisks() {
 
 // Sistemdeki USB sürücüleri listeleme (OSU1 Flash Bellek için)
 function getUsbDrives() {
+  if (process.platform === 'linux') {
+    return new Promise((resolve) => {
+      const lsblkCmd = 'lsblk -d -b -J -o NAME,PATH,SIZE,ROTA,TYPE,MODEL,TRAN,MOUNTPOINT';
+      exec(lsblkCmd, (err, stdout) => {
+        if (err || !stdout) return resolve({ success: true, drives: [] });
+        try {
+          const data = JSON.parse(stdout);
+          const drives = (data.blockdevices || [])
+            .filter(d => d.type === 'disk' && d.tran === 'usb' && !d.name.startsWith('loop'))
+            .map((d, idx) => {
+              const sizeBytes = parseInt(d.size, 10) || 0;
+              const sizeGb = sizeBytes / (1024 ** 3);
+              return {
+                number: idx + 1,
+                devicePath: d.path || `/dev/${d.name}`,
+                name: d.model ? `${d.model} (${d.name})` : (d.path || `/dev/${d.name}`),
+                sizeBytes: sizeBytes,
+                sizeGb: parseFloat(sizeGb.toFixed(1)),
+                sizeFormatted: sizeGb >= 1000 ? `${(sizeGb / 1024).toFixed(2)} TB` : `${sizeGb.toFixed(1)} GB`,
+                partitionStyle: 'MBR',
+                driveLetter: d.mountpoint || 'Atanmamış',
+                isMbr: true,
+                isRecommendedUsb: (sizeGb >= 7.0 && sizeGb <= 128.0)
+              };
+            });
+          resolve({ success: true, drives });
+        } catch (e) {
+          resolve({ success: false, drives: [] });
+        }
+      });
+    });
+  }
+
   return new Promise((resolve) => {
     const psCmd = `Get-Disk | Where-Object { $_.BusType -eq 'USB' } | Select-Object Number, FriendlyName, Size, PartitionStyle, @{N='DriveLetters';E={ (Get-Partition -DiskNumber $_.Number -ErrorAction SilentlyContinue | Where-Object DriveLetter).DriveLetter -join ', ' }} | ConvertTo-Json -Compress`;
     execFile('powershell.exe', [
@@ -246,7 +377,32 @@ function executeDiskpartScript(scriptContent, onLogChunk) {
 }
 
 // GDISK64 ile Kriptografik Sabit Disk GUID ve Partition GUID Enjeksiyonu
-function executeGdiskGuidInjection(diskNumber, diskGuid, onLogChunk) {
+function executeGdiskGuidInjection(diskNumber, diskGuid, onLogChunk, targetDevicePath = null) {
+  if (process.platform === 'linux') {
+    return new Promise(async (resolve) => {
+      const dev = targetDevicePath || `/dev/sd${String.fromCharCode(96 + diskNumber)}`;
+      onLogChunk(`\n--- [LINUX: SGDISK İLE GUID ENJEKSİYONU BAŞLATILIYOR] ---`);
+      onLogChunk(`Hedef Aygıt        : ${dev}`);
+      onLogChunk(`Disk GUID          : ${diskGuid}\n`);
+
+      const cmd = `sgdisk --disk-guid=${diskGuid} ` +
+        `--partition-guid=1:${PART_GUIDS[1].guid} ` +
+        `--partition-guid=2:${PART_GUIDS[2].guid} ` +
+        `--partition-guid=3:${PART_GUIDS[3].guid} ` +
+        `--partition-guid=4:${PART_GUIDS[4].guid} ` +
+        `--partition-guid=5:${PART_GUIDS[5].guid} ${dev}`;
+
+      const res = await runPrivilegedCommand(cmd, onLogChunk);
+      if (res.success) {
+        onLogChunk(`\n[✓] SGDISK GUID imzaları başarıyla yazıldı.\n`);
+        resolve({ success: true, code: 0 });
+      } else {
+        onLogChunk(`\n[!] GUID enjeksiyon hatası: ${res.error}\n`);
+        resolve({ success: false, code: 1, stderr: res.error });
+      }
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const is32Bit = process.arch === 'ia32';
     const gdiskExe = getAssetPath('bin', is32Bit ? 'gdisk32.exe' : 'gdisk64.exe');
@@ -328,6 +484,10 @@ async function sleep(ms) {
 // ================= IPC HANDLERS =================
 ipcMain.handle('check-elevation', async () => {
   return await checkIsAdmin();
+});
+
+ipcMain.handle('check-linux-deps', async () => {
+  return await checkLinuxDependencies();
 });
 
 ipcMain.handle('relaunch-admin', async () => {
@@ -426,7 +586,7 @@ ipcMain.handle('inject-guid-only', async (event, params) => {
 
   try {
     progress(30, 'GDISK ile Kriptografik GUID imzaları yazılıyor...');
-    const resGdisk = await executeGdiskGuidInjection(diskNumber, diskGuid, log);
+    const resGdisk = await executeGdiskGuidInjection(diskNumber, diskGuid, log, params.devicePath);
 
     if (!resGdisk.success) {
       log(`\n[!] GDISK işleminde sorun oluştu (Çıkış Kodu: ${resGdisk.code}).`);
@@ -474,6 +634,49 @@ ipcMain.handle('run-xbox-formatting', async (event, params) => {
   }
 
   try {
+    if (process.platform === 'linux') {
+      const dev = params.devicePath || `/dev/sd${String.fromCharCode(96 + diskNumber)}`;
+      log(`\n[1/2] AŞAMA: Linux Blok Aygıtı Temizleniyor ve 5 Bölüm Oluşturuluyor (${dev})...`);
+      progress(20, 'Bölüm tablosu sıfırlanıyor (wipefs & sgdisk)...');
+
+      const p1 = getPartitionDevicePath(dev, 1);
+      const p2 = getPartitionDevicePath(dev, 2);
+      const p3 = getPartitionDevicePath(dev, 3);
+      const p4 = getPartitionDevicePath(dev, 4);
+      const p5 = getPartitionDevicePath(dev, 5);
+
+      const partitionCmd = [
+        `umount ${dev}* 2>/dev/null || true`,
+        `wipefs -a ${dev}`,
+        `sgdisk --zap-all ${dev}`,
+        `sgdisk --new=1:2048:+41984M --typecode=1:0700 --change-name=1:"Temp Content" ${dev}`,
+        `sgdisk --new=3:-60416M:-19457M --typecode=3:0700 --change-name=3:"System Support" ${dev}`,
+        `sgdisk --new=4:-19456M:-7169M --typecode=4:0700 --change-name=4:"System Update" ${dev}`,
+        `sgdisk --new=5:-7168M:0 --typecode=5:0700 --change-name=5:"System Update 2" ${dev}`,
+        `sgdisk --new=2:0:-60417M --typecode=2:0700 --change-name=2:"User Content" ${dev}`,
+        `partprobe ${dev} || true`,
+        `sleep 1`,
+        `sgdisk --disk-guid=${diskGuid} --partition-guid=1:${PART_GUIDS[1].guid} --partition-guid=2:${PART_GUIDS[2].guid} --partition-guid=3:${PART_GUIDS[3].guid} --partition-guid=4:${PART_GUIDS[4].guid} --partition-guid=5:${PART_GUIDS[5].guid} ${dev}`,
+        `partprobe ${dev} || true`,
+        `mkfs.ntfs -f -s 4096 -L "Temp Content" ${p1}`,
+        `mkfs.ntfs -f -s 4096 -L "User Content" ${p2}`,
+        `mkfs.ntfs -f -s 4096 -L "System Support" ${p3}`,
+        `mkfs.ntfs -f -s 4096 -L "System Update" ${p4}`,
+        `mkfs.ntfs -f -s 4096 -L "System Update 2" ${p5}`
+      ].join(' && ');
+
+      progress(50, 'Bölümler oluşturuluyor ve NTFS 4K formatlanıyor...');
+      const resFormat = await runPrivilegedCommand(partitionCmd, log);
+      if (!resFormat.success) {
+        log(`\n[!] Linux biçimlendirme hatası: ${resFormat.error}`);
+        return { success: false, error: resFormat.error };
+      }
+
+      progress(100, 'Tüm işlemler başarıyla tamamlandı!');
+      log(`\n[✓] TEBRİKLER! DİSK XBOX ONE İÇİN KUSURSUZ HAZIRLANDI (${dev})\n`);
+      return { success: true };
+    }
+
     progress(15, 'Disk temizleniyor ve 5 Xbox bölümü oluşturuluyor...');
     const phase1Commands = [
       `select disk ${diskNumber}`,
@@ -552,6 +755,68 @@ ipcMain.handle('prepare-osu-usb', async (event, params) => {
   }
 
   try {
+    if (process.platform === 'linux') {
+      const dev = params.devicePath || `/dev/sd${String.fromCharCode(96 + diskNumber)}`;
+      const p1 = getPartitionDevicePath(dev, 1);
+      const mountDir = '/tmp/xbox_osu_mount';
+
+      progress(15, 'Linux: USB MBR ve NTFS olarak biçimlendiriliyor...');
+      log(`\n[1/3] AŞAMA: USB Disk Sıfırlanıyor (${dev} -> MBR + NTFS + Aktif)...`);
+
+      const formatCmd = [
+        `umount ${dev}* 2>/dev/null || true`,
+        `wipefs -a ${dev}`,
+        `printf "label: dos\\n,,7,*\\n" | sfdisk ${dev}`,
+        `partprobe ${dev} || true`,
+        `sleep 1`,
+        `mkfs.ntfs -f -s 4096 -L "OSU1" ${p1}`,
+        `mkdir -p ${mountDir}`,
+        `mount ${p1} ${mountDir} || mount -t ntfs-3g ${p1} ${mountDir}`
+      ].join(' && ');
+
+      const resFormat = await runPrivilegedCommand(formatCmd, log);
+      if (!resFormat.success) {
+        log(`\n[!] Linux USB biçimlendirme hatası: ${resFormat.error}`);
+        return { success: false, error: resFormat.error };
+      }
+
+      log(`\n[2/3] AŞAMA: USB Başarıyla Bağlandı: ${mountDir}`);
+      progress(55, '$SystemUpdate klasörü USB belleğe çıkarılıyor...');
+
+      const unzipScript = getAssetPath('scripts', 'unzip_osu.py');
+      const py = findPythonExecutable();
+
+      const extractCmd = `${py} "${unzipScript}" "${zipPath}" "${mountDir}"`;
+      const resExtract = await runPrivilegedCommand(extractCmd, (text) => {
+        log(text);
+        if (text.includes('[PROGRESS]')) {
+          const match = text.match(/\[PROGRESS\]\s+([\d\.]+)%/);
+          if (match) {
+            const p = parseFloat(match[1]);
+            progress(55 + Math.round(p * 0.4), `Dosyalar çıkarılıyor: %${p}`);
+          }
+        }
+      });
+
+      await runPrivilegedCommand(`sync && umount ${mountDir} || true`, log);
+
+      if (!resExtract.success) {
+        log(`\n[!] Ayıklama sırasında bir sorun oluştu.`);
+        return { success: false, error: 'Dosyalar çıkarılamadı' };
+      }
+
+      progress(100, 'USB Flash Bellek Kusursuz Hazırlandı!');
+      log(`\n======================================================`);
+      log(` [✓] TEBRİKLER! XBOX ONE OSU1 USB BELLEĞİ HAZIR`);
+      log(`======================================================`);
+      log(`Aygıt        : ${dev} (${p1})`);
+      log(`İçerik       : $SystemUpdate/ (updater.xvd ve sistem dosyaları doğrulandı)`);
+      log(`Format       : MBR + NTFS (Xbox One bootloader tarafından %100 tanınır)`);
+      log(`Durum        : Güvenli şekilde ayrıldı (Unmounted), konsola takabilirsiniz.\n`);
+
+      return { success: true, targetDrive: dev };
+    }
+
     // 1. AŞAMA: USB'yi MBR ve NTFS olarak formatla ve Aktif yap
     progress(15, 'USB bellek MBR bölüm tablosu ve NTFS olarak biçimlendiriliyor...');
     log(`\n[1/3] AŞAMA: USB Disk Sıfırlanıyor (MBR + NTFS + Aktif)...`);

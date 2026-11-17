@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   checkElevation: () => ipcRenderer.invoke('check-elevation'),
+  checkLinuxDeps: () => ipcRenderer.invoke('check-linux-deps'),
   relaunchAdmin: () => ipcRenderer.invoke('relaunch-admin'),
   getDisks: () => ipcRenderer.invoke('get-disks'),
   getUsbDrives: () => ipcRenderer.invoke('get-usb-drives'),

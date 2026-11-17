@@ -5,11 +5,14 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win"
+    "build": "electron-builder --win",
+    "build:linux": "electron-builder --linux tar.gz zip",
+    "build:all": "electron-builder --win --linux tar.gz zip"
   },
+  "desktopName": "xbox-one-disk-manager",
   "build": {
     "appId": "com.tolgakabadayi.xboxonediskmanager",
-    "productName": "Xbox One Recovery & SSD Center",
+    "productName": "Xbox One Recovery and SSD Center",
     "directories": {
       "output": "dist"
     },
@@ -30,6 +33,11 @@
         "filter": ["**/*"]
       }
     ],
+    "linux": {
+      "target": ["tar.gz", "zip"],
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    },
     "win": {
       "target": [
         {
@@ -45,10 +53,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Xbox One Recovery & SSD Center",
+      "shortcutName": "Xbox One Recovery and SSD Center",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "uninstallDisplayName": "Xbox One Recovery & SSD Center",
+      "uninstallDisplayName": "Xbox One Recovery and SSD Center",
       "runAfterFinish": true
     }
   },

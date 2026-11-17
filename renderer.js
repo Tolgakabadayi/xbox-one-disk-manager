@@ -116,6 +116,14 @@ const btnConfirmProceed = document.getElementById('btnConfirmProceed');
 document.addEventListener('DOMContentLoaded', async () => {
   initEventListeners();
   await checkElevation();
+  try {
+    const deps = await window.electronAPI.checkLinuxDeps();
+    if (deps && !deps.ok && deps.missing.length > 0) {
+      adminWarningBanner.classList.remove('hidden');
+      adminWarningText.textContent = `🐧 Linux Eksik Paket Uyarısı: ${deps.missing.join(', ')} araçları bulunamadı. Lütfen yükleyin: sudo apt install gdisk ntfs-3g (veya sudo pacman -S gptfdisk ntfs-3g)`;
+      btnRelaunchAdmin.style.display = 'none';
+    }
+  } catch (e) {}
   await loadDisks();
   await loadUsbDrives();
 
@@ -452,6 +460,7 @@ async function startUsbInstallProcess() {
 
   const params = {
     diskNumber: state.selectedUsb.number,
+    devicePath: state.selectedUsb.devicePath,
     zipPath: state.osuZipPath,
     isSimulation: state.isSimulation
   };
@@ -589,6 +598,7 @@ async function startGuidOnlyProcess() {
 
   const res = await window.electronAPI.injectGuidOnly({
     diskNumber: state.selectedDisk.number,
+    devicePath: state.selectedDisk.devicePath,
     diskGuidType: state.diskGuidType,
     isSimulation: state.isSimulation
   });
@@ -609,6 +619,7 @@ async function startFullFormattingProcess() {
 
   const res = await window.electronAPI.runXboxFormatting({
     diskNumber: state.selectedDisk.number,
+    devicePath: state.selectedDisk.devicePath,
     userContentMb: state.userContentMb,
     diskGuidType: state.diskGuidType,
     isSimulation: state.isSimulation

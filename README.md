@@ -30,19 +30,57 @@ Pre-built packages for Windows and Linux:
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Windows 10 or Windows 11 (64-bit)
-- Node.js 18+ (for source builds)
-- Python 3.8+ (for standalone CLI scripts)
+### 🪟 Windows (10 / 11 64-bit)
+1. Download `Xbox-One-Recovery-SSD-Center-Setup-1.0.0.exe` from [Releases](https://github.com/Tolgakabadayi/xbox-one-disk-manager/releases).
+2. Run the installer and launch the application. Administrator privileges are automatically requested via UAC.
+3. Select your target 2.5" SSD/HDD or USB Flash drive and follow the on-screen steps.
 
-### Installation
+---
+
+### 🐧 Linux (Ubuntu, Debian, Fedora, Arch, Manjaro, Hyprland, Sway, GNOME)
+The application natively supports Linux on both X11 and Wayland display servers:
+
+1. **System Dependencies**:
+   Install the required disk and filesystem management tools:
+   - **Debian / Ubuntu / Mint**:
+     ```bash
+     sudo apt update && sudo apt install gdisk ntfs-3g parted python3 policykit-1
+     ```
+   - **Arch Linux / Manjaro**:
+     ```bash
+     sudo pacman -S gptfdisk ntfs-3g parted python polkit
+     ```
+   - **Fedora / RHEL**:
+     ```bash
+     sudo dnf install gdisk ntfs-3g parted python3 polkit
+     ```
+
+2. **Download & Run**:
+   ```bash
+   tar -xzf xbox-one-disk-manager-1.0.0.tar.gz
+   cd xbox-one-disk-manager-1.0.0
+   chmod +x xbox-one-disk-manager
+   ./xbox-one-disk-manager
+   ```
+
+3. **Wayland & Security Architecture**:
+   - **Non-Root GUI**: Electron runs as an unprivileged user to preserve Wayland sockets (`XDG_RUNTIME_DIR`).
+   - **PolicyKit Elevation (`pkexec`)**: Disk partitioning (`sgdisk`, `partprobe`) and formatting (`mkfs.ntfs`) commands invoke privilege elevation only on demand.
+   - **Crash-Resilient GPU Pipeline**: Configured with `--ozone-platform-hint=auto` and GPU fallback recovery to prevent `SIGTRAP` termination on Wayland compositors (Hyprland, Sway, Mutter).
+   - **Dynamic Partition Path Resolution**: Automatically handles both standard (`/dev/sda1`) and numeric-suffix block devices (`/dev/nvme0n1p1`, `/dev/mmcblk0p1`).
+
+---
+
+### 🛠️ Building from Source
 ```bash
 git clone https://github.com/Tolgakabadayi/xbox-one-disk-manager.git
 cd xbox-one-disk-manager
 npm install
 npm start
 ```
-Or launch using `Baslat.bat` to automatically request administrative permissions.
+To package binaries:
+- Windows: `npm run build`
+- Linux: `npm run build:linux`
 
 ---
 

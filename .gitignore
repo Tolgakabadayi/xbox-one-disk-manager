@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs & caches
+dist/
+build/
+.cache/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large files & downloads
+*.zip
+*.xvd
+OSU1.zip
+osu1_download_status.json
+
+# External references
+reference_xboxonehdd/
+
+# Temporary files & logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.tmp/
+temp/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

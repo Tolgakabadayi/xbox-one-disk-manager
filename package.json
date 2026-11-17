@@ -1,0 +1,27 @@
+{
+  "name": "xbox-one-disk-manager",
+  "version": "1.0.0",
+  "description": "Xbox One Dahili Disk ve SSD Hazırlama Aracı (GUID + Partition + OSU1)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "xbox",
+    "diskpart",
+    "ssd",
+    "partition"
+  ],
+  "author": "Tolga Kabadayı",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tolgakabadayi/xbox-one-disk-manager.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^45.3.3"
+  },
+  "dependencies": {
+    "iconv-lite": "^0.7.3"
+  }
+}

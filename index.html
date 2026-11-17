@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xbox One SSD & USB OSU1 Kurulum Merkezi</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-section">
+        <div class="xbox-logo-badge">
+          <svg viewBox="0 0 100 100" class="xbox-icon" fill="currentColor">
+            <path d="M50 0C22.4 0 0 22.4 0 50s22.4 50 50 50 50-22.4 50-50S77.6 0 50 0zm28.7 75.6c-4.4 5-11.8 8.8-19.8 11.2 5.5-8.8 9.5-18.7 11.7-29.2 3.5 6.6 6.3 12.8 8.1 18zm-57.4 0c1.8-5.2 4.6-11.4 8.1-18 2.2 10.5 6.2 20.4 11.7 29.2-8-2.4-15.4-6.2-19.8-11.2zm3.3-43.2c5.6-7.8 14.8-13.4 25.4-15.7-8.3 5.3-15.2 12.2-20.5 20.3-1.8-1.5-3.5-3-4.9-4.6zm50.8 0c-1.4 1.6-3.1 3.1-4.9 4.6-5.3-8.1-12.2-15-20.5-20.3 10.6 2.3 19.8 7.9 25.4 15.7z"/>
+          </svg>
+        </div>
+        <div class="title-info">
+          <h1>XBOX ONE RECOVERY & SSD CENTER</h1>
+          <p class="subtitle">Dahili SSD Hazırlama, GDISK GUID Enjeksiyonu & Otomatik USB OSU1 Kurulumu</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="mode-toggle-card">
+          <span class="mode-label">Mod:</span>
+          <label class="switch">
+            <input type="checkbox" id="simModeToggle">
+            <span class="slider round"></span>
+          </label>
+          <span id="modeStatusText" class="mode-status normal">GERÇEK</span>
+        </div>
+
+        <div id="adminBadge" class="admin-badge unknown">
+          <span class="badge-dot"></span>
+          <span id="adminBadgeText">Yetki Kontrolü...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Admin Warning Banner -->
+    <div id="adminWarningBanner" class="admin-warning-banner hidden">
+      <div class="warning-content">
+        <span class="warning-icon">⚠️</span>
+        <div class="warning-text">
+          <strong>Yönetici İzni Gerekli:</strong> GDISK, diskpart ve USB biçimlendirme işlemleri için uygulamanın Yönetici olarak çalışması gerekmektedir.
+        </div>
+      </div>
+      <button id="btnRelaunchAdmin" class="btn-warning-action">🛡️ Yönetici Olarak Yeniden Başlat</button>
+    </div>
+
+    <!-- Main Module Selector Tabs -->
+    <div class="main-tabs-bar">
+      <button class="main-tab-btn" data-tab="ssd">
+        <span class="tab-icon">💽</span>
+        <span>1. Dahili SSD Hazırlayıcı (5 Bölüm + GDISK)</span>
+      </button>
+      <button class="main-tab-btn active" data-tab="usb">
+        <span class="tab-icon">⚡</span>
+        <span>2. USB Flash Bellek OSU1 Kurucu (MBR + NTFS)</span>
+        <span class="tab-badge-pulse" id="usbTabBadge">İndiriliyor...</span>
+      </button>
+    </div>
+
+    <!-- ========================================================
+         MODÜL 1: DAHİLİ SSD HAZIRLAYICI (WIZARD)
+         ======================================================== -->
+    <div id="moduleSsd" class="module-view hidden">
+      <!-- Stepper Navigation -->
+      <nav class="stepper-nav">
+        <button class="step-btn active" data-step="1">
+          <span class="step-number">1</span>
+          <span class="step-label">Disk Seçimi</span>
+        </button>
+        <div class="step-line"></div>
+        <button class="step-btn" data-step="2">
+          <span class="step-number">2</span>
+          <span class="step-label">Kapasite & GUID</span>
+        </button>
+        <div class="step-line"></div>
+        <button class="step-btn" data-step="3">
+          <span class="step-number">3</span>
+          <span class="step-label">İşlem & Konsol</span>
+        </button>
+        <div class="step-line"></div>
+        <button class="step-btn" data-step="4">
+          <span class="step-number">4</span>
+          <span class="step-label">Xbox Rehberi</span>
+        </button>
+      </nav>
+
+      <!-- STEP 1: DİSK SEÇİMİ -->
+      <section id="step1" class="wizard-step active">
+        <div class="step-header">
+          <div>
+            <h2>Xbox One Dahili SSD'yi Seçin</h2>
+            <p class="section-desc">Konsola takılacak dahili SSD'yi belirleyin. Windows sistem diskleri kilitlidir.</p>
+          </div>
+          <button id="btnRefreshDisks" class="btn-secondary">
+            <span class="refresh-icon">🔄</span> Diskleri Yenile
+          </button>
+        </div>
+
+        <div id="disksContainer" class="disks-grid">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Diskler taranıyor...</p>
+          </div>
+        </div>
+
+        <div id="selectedDiskBanner" class="selected-disk-banner hidden">
+          <div class="banner-left">
+            <span class="check-icon">✓</span>
+            <div>
+              <span class="banner-title">Seçilen Hedef SSD:</span>
+              <strong id="selectedDiskNameText">Disk 3 (1000 GB)</strong>
+            </div>
+          </div>
+          <button id="btnProceedToStep2" class="btn-primary">Kapasite Ayarına Geç ➔</button>
+        </div>
+      </section>
+
+      <!-- STEP 2: KAPASİTE VE BÖLÜMLEME -->
+      <section id="step2" class="wizard-step">
+        <div class="step-header">
+          <div>
+            <h2>Kapasite ve GUID Yapılandırması</h2>
+            <p class="section-desc">GDISK64 ile diskin GPT tablosuna yazılacak Xbox One NAND imzaları.</p>
+          </div>
+          <button id="btnBackToStep1" class="btn-secondary">⬅ Disk Seçimine Dön</button>
+        </div>
+
+        <div class="capacity-selector-grid">
+          <div class="capacity-card" data-capacity="500">
+            <div class="capacity-badge">Standart</div>
+            <h3>500 GB</h3>
+            <p class="user-content-text">Oyun Alanı: <strong>365 GB</strong></p>
+          </div>
+          <div class="capacity-card" data-capacity="1000">
+            <div class="capacity-badge">Popüler</div>
+            <h3>1 TB</h3>
+            <p class="user-content-text">Oyun Alanı: <strong>781 GB</strong></p>
+          </div>
+          <div class="capacity-card" data-capacity="2000">
+            <div class="capacity-badge">Maksimum</div>
+            <h3>2 TB</h3>
+            <p class="user-content-text">Oyun Alanı: <strong>1662 GB</strong></p>
+          </div>
+          <div class="capacity-card active" data-capacity="custom">
+            <div class="capacity-badge highlight">Önerilen</div>
+            <h3>Özel SSD</h3>
+            <p class="user-content-text">Otomatik Hesaplanan Alan</p>
+          </div>
+        </div>
+
+        <div id="customCapacityBox" class="custom-capacity-box">
+          <div class="calc-row">
+            <div class="input-group">
+              <label for="inputUserContentMb">User Content (Oyun/Kullanıcı Alanı) Boyutu (MB):</label>
+              <div class="input-with-actions">
+                <input type="number" id="inputUserContentMb" value="848896" step="1024" min="100000">
+                <button id="btnAutoRecalc" class="btn-secondary small">Otomatik Hesapla</button>
+              </div>
+            </div>
+            <div class="calc-summary-stat">
+              <span class="stat-label">Yaklaşık Oyun Alanı:</span>
+              <strong id="statUserContentGb" class="stat-value">~829 GB</strong>
+            </div>
+          </div>
+
+          <div class="guid-selector-row">
+            <div class="input-group">
+              <label for="selectDiskGuidType">Xbox One Disk GUID İmzası:</label>
+              <select id="selectDiskGuidType" class="select-guid">
+                <option value="1TB" selected>1 TB Disk GUID (25E8A1B2-0B2A-4474-93FA-35B847D97EE5) - 829GB / 1TB SSD İçin</option>
+                <option value="500GB">500 GB Disk GUID (A2344BDB-D6DE-4766-9EB5-4109A12228E5)</option>
+                <option value="2TB">2 TB Disk GUID (5B114955-4A1C-45C4-86DC-D95070008139)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="partition-visual-card">
+          <div class="segmented-bar">
+            <div class="segment seg-temp" style="flex: 41;" title="Temp Content (41 GB)"><span class="seg-label">Temp (41G)</span></div>
+            <div class="segment seg-user" id="segUserContent" style="flex: 829;" title="User Content"><span class="seg-label">User Content (<span id="segUserGbText">829 GB</span>)</span></div>
+            <div class="segment seg-support" style="flex: 40;" title="System Support (40 GB)"><span class="seg-label">Support (40G)</span></div>
+            <div class="segment seg-update1" style="flex: 12;" title="System Update (12 GB)"><span class="seg-label">Update (12G)</span></div>
+            <div class="segment seg-update2" style="flex: 7;" title="System Update 2 (7 GB)"><span class="seg-label">Upd2 (7G)</span></div>
+            <div class="segment seg-buffer" style="flex: 2;"><span class="seg-label">G</span></div>
+          </div>
+        </div>
+
+        <div class="step-footer-actions">
+          <button id="btnProceedToStep3" class="btn-primary large">İşlemi Başlatmaya Geç ➔</button>
+        </div>
+      </section>
+
+      <!-- STEP 3: İŞLEM VE CANLI TERMİNAL -->
+      <section id="step3" class="wizard-step">
+        <div class="step-header">
+          <div>
+            <h2>SSD İşlemi ve Canlı Konsol</h2>
+            <p class="section-desc">GDISK64 motoru ile GUID imzalarını doğrudan yazabilirsiniz.</p>
+          </div>
+          <button id="btnBackToStep2" class="btn-secondary">⬅ Ayarlara Dön</button>
+        </div>
+
+        <div class="execution-summary-card">
+          <div class="summary-details">
+            <div class="summary-item"><span class="label">Hedef SSD:</span><strong id="execDiskSummary">Disk 3</strong></div>
+            <div class="summary-item"><span class="label">Oyun Alanı:</span><strong id="execUserSizeSummary">~829 GB</strong></div>
+            <div class="summary-item"><span class="label">Disk GUID:</span><strong id="execDiskGuidSummary">1TB</strong></div>
+          </div>
+          <div class="action-buttons-group">
+            <button id="btnInjectGuidOnly" class="btn-action-fast">
+              <span class="btn-icon">⚡</span> SADECE GUID İMZALARINI ÇAK (2 Sn)
+            </button>
+            <button id="btnStartFormatting" class="btn-action-start">
+              <span class="btn-icon">🔄</span> SIFIRDAN BÖLÜMLE VE FORMATLA
+            </button>
+          </div>
+        </div>
+
+        <div id="progressContainer" class="progress-container hidden">
+          <div class="progress-info">
+            <span id="progressMessage" class="progress-message">İşlem bekleniyor...</span>
+            <span id="progressPercent" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="terminal-card">
+          <div class="terminal-header">
+            <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="terminal-title">SSD Konsolu</span></div>
+            <div class="terminal-tools">
+              <label class="autoscroll-toggle"><input type="checkbox" id="autoScrollCheck" checked><span>Oto-Kaydır</span></label>
+              <button id="btnClearLog" class="btn-term">Temizle</button>
+            </div>
+          </div>
+          <pre id="terminalOutput" class="terminal-output">Konsol hazır...</pre>
+        </div>
+
+        <div id="successActionBox" class="success-action-box hidden">
+          <div class="success-message">
+            <span class="success-icon">🎉</span>
+            <div><h3>Tebrikler! SSD Hazırlandı!</h3><p>Şimdi yukarıdaki <strong>"2. USB Flash Bellek OSU1 Kurucu"</strong> sekmesine geçin.</p></div>
+          </div>
+          <button id="btnSwitchToUsbTab" class="btn-primary">USB OSU1 Kurucuya Geç ➔</button>
+        </div>
+      </section>
+
+      <!-- STEP 4: REHBER -->
+      <section id="step4" class="wizard-step">
+        <div class="step-header">
+          <h2>Xbox One Kurulum Rehberi</h2>
+          <button id="btnBackToStart" class="btn-secondary">Başa Dön</button>
+        </div>
+        <p class="section-desc">SSD'yi konsola taktıktan sonra hazırlanmış USB ile konsolu başlatın.</p>
+      </section>
+    </div>
+
+    <!-- ========================================================
+         MODÜL 2: USB FLASH BELLEK OSU1 KURUCU
+         ======================================================== -->
+    <div id="moduleUsb" class="module-view active">
+      <div class="usb-module-layout">
+        
+        <!-- ÜST KART: OSU1 İNDİRME / DOSYA DURUMU -->
+        <div class="osu-download-card">
+          <div class="card-header-flex">
+            <div>
+              <span class="badge-accent">ADIM 1</span>
+              <h3>Microsoft Resmi OSU1 Paketi (5.85 GB)</h3>
+              <p class="subtext">Xbox One çevrimdışı sistem güncelleme dosyası doğrudan Microsoft sunucularından çekilir.</p>
+            </div>
+            <div class="file-action-btns">
+              <button id="btnSelectCustomZip" class="btn-secondary small">📂 Farklı Zip Seç</button>
+              <button id="btnRestartDownload" class="btn-secondary small">🔄 İndirmeyi Yenile</button>
+            </div>
+          </div>
+
+          <div class="download-status-box">
+            <div class="status-meta-row">
+              <span class="status-indicator-badge" id="osuStatusBadge">İndiriliyor</span>
+              <span class="status-text" id="osuStatusText">İndirme devam ediyor...</span>
+              <span class="download-speed-tag" id="osuSpeedText">0.0 MB/s</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="osuDownloadBarFill" class="progress-bar-fill green-gradient" style="width: 0%;"></div>
+            </div>
+            <div class="status-sub-row">
+              <span id="osuDownloadedBytesText">0 MB / 5.85 GB</span>
+              <span id="osuFilePathText" class="file-path-hint">C:\Users\kabad\Downloads\OSU1.zip</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ORTA KART: USB BELLEK SEÇİMİ -->
+        <div class="usb-select-card">
+          <div class="card-header-flex">
+            <div>
+              <span class="badge-accent">ADIM 2</span>
+              <h3>Hedef USB Flash Belleği Seçin</h3>
+              <p class="subtext">En az 8 GB flash bellek gereklidir. <strong>Xbox One'ın tanıması için MBR ve NTFS</strong> olarak otomatik yapılandırılacaktır.</p>
+            </div>
+            <button id="btnRefreshUsbList" class="btn-secondary small">🔄 USB'leri Tara</button>
+          </div>
+
+          <div id="usbDrivesGrid" class="usb-drives-grid">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <p>Bağlı USB bellekler taranıyor...</p>
+            </div>
+          </div>
+
+          <div id="selectedUsbBanner" class="selected-usb-banner hidden">
+            <div class="banner-left">
+              <span class="check-icon">✓</span>
+              <div>
+                <span class="banner-title">Kurulacak USB Bellek:</span>
+                <strong id="selectedUsbTitle">Disk 3 - SanDisk Extreme (32 GB)</strong>
+              </div>
+            </div>
+            <div class="mbr-tag-info">✓ MBR + NTFS + Aktif Yapılacak</div>
+          </div>
+        </div>
+
+        <!-- ALT KART: KURULUM BUTONU VE CANLI KONSOL -->
+        <div class="usb-action-card">
+          <div class="action-flex-row">
+            <div>
+              <span class="badge-accent">ADIM 3</span>
+              <h3>USB Kurulumunu Başlatın</h3>
+              <p class="subtext">Diskpart ile USB sıfırlanır, MBR+NTFS formatlanır ve <code>$SystemUpdate</code> kök dizine çıkarılır.</p>
+            </div>
+            <button id="btnStartUsbInstall" class="btn-action-fast large-btn" disabled>
+              <span class="btn-icon">🚀</span> USB BELLEĞİ XBOX İÇİN HAZIRLA
+            </button>
+          </div>
+
+          <!-- Canlı USB Konsolu -->
+          <div class="terminal-card usb-term">
+            <div class="terminal-header">
+              <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="terminal-title">USB Kurulum Canlı Terminali</span></div>
+              <div class="terminal-tools">
+                <button id="btnClearUsbLog" class="btn-term">Temizle</button>
+              </div>
+            </div>
+            <pre id="usbTerminalOutput" class="terminal-output">USB OSU1 Hazırlayıcı hazır. İndirme tamamlandıktan sonra USB belleğinizi seçip butona tıklayın...</pre>
+          </div>
+
+          <!-- Tamamlandı Kartı -->
+          <div id="usbSuccessCard" class="usb-success-banner hidden">
+            <div class="success-icon-box">🎉</div>
+            <div class="success-details">
+              <h4>USB BELLEK KUSURSUZ HAZIRLANDI!</h4>
+              <p>USB artık MBR ve NTFS dosya sistemine sahip; <code>$SystemUpdate</code> kök dizine yerleştirildi.</p>
+              <div class="xbox-boot-reminder">
+                <strong>Konsolu Başlatma Adımları:</strong>
+                <ol>
+                  <li>Xbox One kapalıyken (ve güç kablosu 30 sn çekilip takılmışken) USB'yi konsolun yan/arka portuna takın.</li>
+                  <li>Konsolun <strong>Eşleştirme (Sync) + Disk Çıkarma (Eject)</strong> tuşlarına basılı tutarken <strong>Güç</strong> tuşuna basın.</li>
+                  <li>İkinci bip sesini (10-15 sn sonra) duyunca tuşları bırakın.</li>
+                  <li><strong>"Çevrimdışı Sistem Güncellemesi"</strong> bu kez <strong>%100 AKTİF</strong> olacaktır!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal -->
+  <div id="confirmModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-danger-icon">🚨</span>
+        <h3 id="modalTitle">ONAY GEREKLİ</h3>
+      </div>
+      <div class="modal-body">
+        <p class="danger-text" id="modalBodyText">İşlem başlatılacaktır.</p>
+        <p class="warning-sub" id="modalSubText">Lütfen dikkatli olun.</p>
+        <div class="confirm-input-group">
+          <label for="confirmInput">Onaylamak için <strong>EVET</strong> yazın:</label>
+          <input type="text" id="confirmInput" placeholder="EVET">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCancelModal" class="btn-secondary">Vazgeç</button>
+        <button id="btnConfirmProceed" class="btn-danger" disabled>Devam Et</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
